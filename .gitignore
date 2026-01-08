@@ -1,0 +1,17 @@
+node_modules/
+.next/
+.env
+.DS_Store
+kushinada-hubert-large
+kushinada-hubert-large.zip
+kushinada-hubert-large.tar.gz
+backend/__pycache__/
+backend/__pycache__/
+backend/api/__pycache__/
+backend/models/__pycache__/
+backend/services/__pycache__/
+backend/sockets/__pycache__/
+backend/emoguchi.db
+.ssh-cert.pub
+.ssh
+backend/uploads/
