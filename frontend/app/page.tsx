@@ -100,127 +100,127 @@ export default function Home() {
 
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 dark:from-slate-900 dark:via-slate-800 dark:to-purple-900 transition-colors duration-300">
-      <div className="max-w-md w-full bg-white dark:bg-slate-800 rounded-2xl shadow-2xl dark:shadow-slate-900/50 overflow-hidden relative backdrop-blur-sm border border-white/20 dark:border-slate-700/50 transform hover:scale-[1.02] transition-all duration-300">
-        {/* Language Switcher */}
-        <div className="absolute top-2 right-2 sm:top-4 sm:right-4 z-10">
-          <LanguageSwitcher />
-        </div>
+    <div className="min-h-screen flex items-center justify-center px-4 py-12">
+      <div className="relative w-full max-w-xl">
+        <div className="ink-wash ink-wash-accent -top-12 -left-8 h-32 w-52 rotate-[-8deg]" />
+        <div className="ink-wash ink-wash-moss -bottom-16 -right-8 h-36 w-56 rotate-[10deg]" />
 
-        {/* Header */}
-        <div className="bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white p-8 text-center relative overflow-hidden">
-          <div className="absolute inset-0 bg-black/10 backdrop-blur-sm"></div>
-          <div className="relative z-10">
-            <h1 className="text-4xl font-bold mb-2 bg-gradient-to-r from-white to-blue-100 bg-clip-text text-transparent drop-shadow-lg">{t.home.title}</h1>
-            <p className="text-blue-100/90 text-lg font-medium">{t.home.subtitle}</p>
-          </div>
-        </div>
-
-        <div className="p-8">
-          {/* Player Name Input */}
-          <div className="mb-6">
-            <label htmlFor="playerName" className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-              {t.home.playerName}
-            </label>
-            <input
-              type="text"
-              id="playerName"
-              value={playerName}
-              onChange={(e) => {
-                setPlayerName(e.target.value);
-                if (nameError) setNameError('');
-              }}
-              className={`w-full px-4 py-3 border ${nameError ? 'border-red-500 dark:border-red-400' : 'border-gray-300 dark:border-gray-600'} bg-white dark:bg-slate-700 text-gray-900 dark:text-white rounded-xl focus:outline-none focus:ring-2 ${nameError ? 'focus:ring-red-500' : 'focus:ring-blue-500 dark:focus:ring-blue-400'} focus:border-transparent transition-all duration-200 hover:border-gray-400 dark:hover:border-gray-500`}
-              placeholder={t.home.playerNamePlaceholder}
-              maxLength={20}
-            />
-            {nameError && (
-              <div className="text-red-500 dark:text-red-400 text-sm mt-1 animate-fade-in">
-                {nameError}
-              </div>
-            )}
-          </div>
-
-          {/* Room Input */}
-          <div className="mb-6">
-            <label htmlFor="customRoomId" className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-              {t.home.customRoomId}
-            </label>
-            <input
-              type="text"
-              id="customRoomId"
-              value={customRoomId}
-              onChange={(e) => {
-                setCustomRoomId(e.target.value);
-                if (roomIdError) setRoomIdError('');
-              }}
-              className={`w-full px-4 py-3 border ${roomIdError ? 'border-red-500 dark:border-red-400' : 'border-gray-300 dark:border-gray-600'} bg-white dark:bg-slate-700 text-gray-900 dark:text-white rounded-xl focus:outline-none focus:ring-2 ${roomIdError ? 'focus:ring-red-500' : 'focus:ring-blue-500 dark:focus:ring-blue-400'} focus:border-transparent transition-all duration-200 hover:border-gray-400 dark:hover:border-gray-500`}
-              placeholder={t.home.customRoomIdPlaceholder}
-              maxLength={20}
-            />
-            {roomIdError && (
-              <div className="text-red-500 dark:text-red-400 text-sm mt-1 animate-fade-in">
-                {roomIdError}
-              </div>
-            )}
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-              {locale === 'ja' ? '空欄で新規作成、入力で既存ルームに参加' : 'Leave blank to create new room, enter to join existing room'}
+        <div className="paper-card relative overflow-hidden animate-fade-in">
+          <div className="paper-header p-8 sm:p-10">
+            <div className="flex items-center justify-between">
+              <span className="ink-stamp">EMOGUCHI</span>
+              <LanguageSwitcher />
+            </div>
+            <h1 className="font-display text-4xl sm:text-5xl mt-6 text-[rgb(var(--ink))]">
+              {t.home.title}
+            </h1>
+            <p className="mt-3 text-sm sm:text-base text-[rgb(var(--ink-muted))]">
+              {t.home.subtitle}
             </p>
           </div>
 
-          
-          {/* Action Buttons */}
-          <div className="space-y-4">
-            <button
-              onClick={createRoom}
-              disabled={!playerName.trim() || isCreating || !!nameError || !!roomIdError}
-              className="group w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white py-4 px-6 rounded-xl disabled:from-gray-400 disabled:to-gray-400 disabled:cursor-not-allowed disabled:opacity-50 transition-all duration-200 font-medium text-lg shadow-lg hover:shadow-xl transform hover:scale-[1.02] active:scale-[0.98] focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-slate-800 relative overflow-hidden"
-            >
-              <div className="absolute inset-0 bg-white/20 transform -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-700 ease-out"></div>
-              <div className="relative z-10">
+          <div className="p-8 sm:p-10 space-y-6">
+            {/* Player Name Input */}
+            <div>
+              <label htmlFor="playerName" className="block text-xs uppercase tracking-[0.24em] text-[rgb(var(--ink-muted))] mb-2">
+                {t.home.playerName}
+              </label>
+              <input
+                type="text"
+                id="playerName"
+                value={playerName}
+                onChange={(e) => {
+                  setPlayerName(e.target.value);
+                  if (nameError) setNameError('');
+                }}
+                className={`ink-input ${nameError ? 'ink-input-error' : ''}`}
+                placeholder={t.home.playerNamePlaceholder}
+                maxLength={20}
+              />
+              {nameError && (
+                <div className="text-sm mt-2 text-[rgb(199,67,53)] animate-fade-in">
+                  {nameError}
+                </div>
+              )}
+            </div>
+
+            {/* Room Input */}
+            <div>
+              <label htmlFor="customRoomId" className="block text-xs uppercase tracking-[0.24em] text-[rgb(var(--ink-muted))] mb-2">
+                {t.home.customRoomId}
+              </label>
+              <input
+                type="text"
+                id="customRoomId"
+                value={customRoomId}
+                onChange={(e) => {
+                  setCustomRoomId(e.target.value);
+                  if (roomIdError) setRoomIdError('');
+                }}
+                className={`ink-input ${roomIdError ? 'ink-input-error' : ''}`}
+                placeholder={t.home.customRoomIdPlaceholder}
+                maxLength={20}
+              />
+              {roomIdError && (
+                <div className="text-sm mt-2 text-[rgb(199,67,53)] animate-fade-in">
+                  {roomIdError}
+                </div>
+              )}
+              <p className="text-xs mt-3 text-[rgb(var(--ink-muted))]">
+                {locale === 'ja' ? '空欄で新規作成、入力で既存ルームに参加' : 'Leave blank to create new room, enter to join existing room'}
+              </p>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="space-y-4">
+              <button
+                onClick={createRoom}
+                disabled={!playerName.trim() || isCreating || !!nameError || !!roomIdError}
+                className="ink-button"
+              >
                 {isCreating ? (
                   <div className="flex items-center justify-center">
-                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
+                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-[rgb(var(--paper))] mr-2"></div>
                     <span className="animate-pulse">
-                      {customRoomId.trim() ? 
-                        (locale === 'ja' ? '参加中...' : 'Joining...') : 
+                      {customRoomId.trim() ?
+                        (locale === 'ja' ? '参加中...' : 'Joining...') :
                         (locale === 'ja' ? '作成中...' : 'Creating...')
                       }
                     </span>
                   </div>
                 ) : (
                   <span className="flex items-center justify-center">
-                    <span className="mr-2 transform group-hover:scale-110 transition-transform">
-                      {customRoomId.trim() ? '🚪' : ''}
-                    </span>
+                    {customRoomId.trim() && <span className="mr-2">🚪</span>}
                     {customRoomId.trim() ? t.home.joinRoom : t.home.createRoom}
                   </span>
                 )}
-              </div>
-            </button>
+              </button>
 
-            {/* Solo Mode Button */}
-            <button
-              onClick={() => router.push('/solo')}
-              className="group w-full bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white py-4 px-6 rounded-xl transition-all duration-200 font-medium text-lg shadow-lg hover:shadow-xl transform hover:scale-[1.02] active:scale-[0.98] focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 dark:focus:ring-offset-slate-800 relative overflow-hidden"
-            >
-              <div className="absolute inset-0 bg-white/20 transform -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-700 ease-out"></div>
-              <div className="relative z-10 flex items-center justify-center">
-                <span className="mr-2 transform group-hover:rotate-12 transition-transform duration-200"></span>
+              <div className="flex items-center gap-3 text-[0.62rem] uppercase tracking-[0.32em] text-[rgb(var(--ink-muted))]">
+                <div className="h-px flex-1 bg-[rgba(var(--ink),0.12)]" />
+                <span>{locale === 'ja' ? 'または' : 'or'}</span>
+                <div className="h-px flex-1 bg-[rgba(var(--ink),0.12)]" />
+              </div>
+
+              {/* Solo Mode Button */}
+              <button
+                onClick={() => router.push('/solo')}
+                className="ink-button-secondary"
+              >
                 {locale === 'ja' ? 'ソロ演技モード' : 'Solo Acting Mode'}
-              </div>
-            </button>
-          </div>
+              </button>
+            </div>
 
-          {/* Footer */}
-          <div className="mt-8 text-center text-sm text-gray-500 dark:text-gray-400">
-            <p>
-              {locale === 'ja' ? (
-                <>スピーカーは指定された感情とセリフで演技し、<br/>リスナーは感情を推理するゲームです</>
-              ) : (
-                <>Speakers perform with given emotions and scripts,<br/>Listeners guess the emotions</>
-              )}
-            </p>
+            {/* Footer */}
+            <div className="pt-2 text-center text-sm text-[rgb(var(--ink-muted))]">
+              <p>
+                {locale === 'ja' ? (
+                  <>スピーカーは指定された感情とセリフで演技し、<br/>リスナーは感情を推理するゲームです</>
+                ) : (
+                  <>Speakers perform with given emotions and scripts,<br/>Listeners guess the emotions</>
+                )}
+              </p>
+            </div>
           </div>
         </div>
       </div>
