@@ -90,7 +90,7 @@ export const useSocket = () => {
 
     // Round events
     socket.on('round_start', (data) => {
-      console.log('🎮 round_start event received:', data);
+      console.log(' round_start event received:', data);
       const round: Round = {
         id: data.roundId,
         phrase: data.phrase,
@@ -98,15 +98,15 @@ export const useSocket = () => {
         speaker_name: data.speakerName,
         voting_choices: data.votingChoices || []
       };
-      console.log('🎮 Created round object:', round);
+      console.log(' Created round object:', round);
       store.setCurrentRound(round);
       store.setLastResult(null); // Clear previous round result when new round starts
       store.setAudioUrl(null); // Clear previous audio when new round starts
       store.setAudioProcessed(false); // Reset audio processing flag
       store.setError(null); // Clear any previous errors when new round starts
       
-      console.log('🎮 Current player name in store:', store.playerName);
-      console.log('🎮 Round speaker name:', round.speaker_name);
+      console.log(' Current player name in store:', store.playerName);
+      console.log(' Round speaker name:', round.speaker_name);
     });
 
     socket.on('speaker_emotion', (data: any) => {

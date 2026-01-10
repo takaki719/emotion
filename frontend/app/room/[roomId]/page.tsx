@@ -609,7 +609,7 @@ export default function RoomPage({ params }: { params: { roomId: string } }) {
                         {isStartingRound ? t.game.starting : 
                          showSettings ? '設定変更中...' :
                          roomState.players.length < 2 ? t.game.minimumPlayers : 
-                         `🎮 ${t.game.gameStart}`}
+                         ` ${t.game.gameStart}`}
                       </button>
                     )}
                   </div>

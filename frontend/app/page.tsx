@@ -191,7 +191,7 @@ export default function Home() {
                 ) : (
                   <span className="flex items-center justify-center">
                     <span className="mr-2 transform group-hover:scale-110 transition-transform">
-                      {customRoomId.trim() ? '🚪' : '🎮'}
+                      {customRoomId.trim() ? '🚪' : ''}
                     </span>
                     {customRoomId.trim() ? t.home.joinRoom : t.home.createRoom}
                   </span>
