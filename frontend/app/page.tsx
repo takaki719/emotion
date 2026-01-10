@@ -206,7 +206,7 @@ export default function Home() {
             >
               <div className="absolute inset-0 bg-white/20 transform -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-700 ease-out"></div>
               <div className="relative z-10 flex items-center justify-center">
-                <span className="mr-2 transform group-hover:rotate-12 transition-transform duration-200">🎭</span>
+                <span className="mr-2 transform group-hover:rotate-12 transition-transform duration-200"></span>
                 {locale === 'ja' ? 'ソロ演技モード' : 'Solo Acting Mode'}
               </div>
             </button>
