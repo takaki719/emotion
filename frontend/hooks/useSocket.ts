@@ -110,16 +110,16 @@ export const useSocket = () => {
     });
 
     socket.on('speaker_emotion', (data: any) => {
-      console.log('🎭 speaker_emotion event received:', data);
-      console.log('🎭 emotionName:', data.emotionName);
-      console.log('🎭 emotionId:', data.emotionId);
+      console.log(' speaker_emotion event received:', data);
+      console.log(' emotionName:', data.emotionName);
+      console.log(' emotionId:', data.emotionId);
       
       // For now, just process all speaker emotions to ensure functionality
       console.log('✅ Processing speaker_emotion (simplified)');
       
       // Prioritize emotion (Japanese) over emotionId (English)
       const emotionToSet = data.emotion || data.emotionId;
-      console.log('🎭 Setting emotion:', emotionToSet);
+      console.log(' Setting emotion:', emotionToSet);
       store.setSpeakerEmotion(emotionToSet);
     });
 
