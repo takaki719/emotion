@@ -9,14 +9,11 @@ import { translations } from '@/lib/translations';
 import { AudioRecorder } from '@/components/AudioRecorder';
 import { AudioPlayer } from '@/components/AudioPlayer';
 import EmotionWheel3Layer from '@/components/EmotionWheel3Layer';
-import { SocketDebugger } from '@/components/SocketDebugger';
-import { ConnectionDebugger } from '@/components/ConnectionDebugger';
-import { SimpleTest } from '@/components/SimpleTest';
-import { ManualSocketTest } from '@/components/ManualSocketTest';
-import { BasicDebug } from '@/components/BasicDebug';
-import { DirectSocketTest } from '@/components/DirectSocketTest';
-import { BackendTester } from '@/components/BackendTester';
-import { DirectAudioTest } from '@/components/DirectAudioTest';
+import VoteTimer from '@/components/VoteTimer';
+import { getApiUrl } from '@/utils/api';
+
+// Edge Runtime 対応
+export const runtime = 'edge';
 
 export default function RoomPage({ params }: { params: { roomId: string } }) {
   const searchParams = useSearchParams();
@@ -35,12 +32,15 @@ export default function RoomPage({ params }: { params: { roomId: string } }) {
     gameComplete,
     error,
     audioUrl,
+    isAudioProcessed,
+    voteTimer,
     setPlayerName,
     setPlayerVote,
     setGameComplete,
     setLastResult,
     setAudioRecording,
-    setAudioUrl
+    setAudioUrl,
+    setError
   } = useGameStore();
 
   const [selectedEmotion, setSelectedEmotion] = useState('');
@@ -48,10 +48,30 @@ export default function RoomPage({ params }: { params: { roomId: string } }) {
   const [isStartingRound, setIsStartingRound] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [gameMode, setGameMode] = useState<'basic' | 'advanced' | 'wheel'>('basic');
-  const [maxRounds, setMaxRounds] = useState(3);
+  const [maxRounds, setMaxRounds] = useState(1);
   const [speakerOrder, setSpeakerOrder] = useState<'sequential' | 'random'>('sequential');
+  const [hardMode, setHardMode] = useState(false);
   const { locale } = useLocaleStore();
   const t = translations[locale];
+
+  // Helper function to translate emotion ID to localized name using i18n
+  const getEmotionDisplayName = (emotion: string): string => {
+    if (!emotion) return '';
+    
+    // Check if it's already a localized emotion name
+    const currentEmotions = Object.values(t.emotions) as string[];
+    if (currentEmotions.includes(emotion)) {
+      return emotion;
+    }
+    
+    // Map emotion ID to localized name using i18n
+    const emotionKey = emotion as keyof typeof t.emotions;
+    if (emotionKey in t.emotions) {
+      return t.emotions[emotionKey];
+    }
+    
+    return emotion; // fallback to original if not found
+  };
 
   useEffect(() => {
     if (playerName) {
@@ -75,9 +95,12 @@ export default function RoomPage({ params }: { params: { roomId: string } }) {
   // Update local state when room state changes
   useEffect(() => {
     if (roomState?.config) {
+      console.log('🔧 Updating settings from roomState:', roomState.config);
       setGameMode(roomState.config.mode);
       setMaxRounds(roomState.config.max_rounds);
       setSpeakerOrder(roomState.config.speaker_order);
+      setHardMode(roomState.config.hard_mode || false);
+      console.log('🔧 Settings updated - maxRounds set to:', roomState.config.max_rounds);
     }
   }, [roomState?.config]);
 
@@ -123,36 +146,99 @@ export default function RoomPage({ params }: { params: { roomId: string } }) {
     console.log('🎤 handleAudioRecording called with blob:', audioBlob);
     console.log('Blob size:', audioBlob.size, 'type:', audioBlob.type);
     
-    setAudioRecording(audioBlob);
-    sendAudio(audioBlob);
-    console.log('📤 Audio sent to server via sendAudio function');
+    // Validate audio blob
+    if (!audioBlob || audioBlob.size === 0) {
+      console.error('❌ Invalid audio blob received');
+      setError('録音データが無効です. 再試行してください.');
+      return;
+    }
+    
+    // Check blob size (should be reasonable)
+    if (audioBlob.size < 1000) { // Less than 1KB might be too small
+      console.warn('⚠️ Audio blob seems very small:', audioBlob.size, 'bytes');
+    }
+    
+    if (audioBlob.size > 50 * 1024 * 1024) { // More than 50MB might be too large
+      console.warn('⚠️ Audio blob seems very large:', audioBlob.size, 'bytes');
+      setError('録音データが大きすぎます. 短めの録音をお試しください.');
+      return;
+    }
+    
+    try {
+      setAudioRecording(audioBlob);
+      sendAudio(audioBlob);
+      console.log('📤 Audio sent to server via sendAudio function');
+    } catch (error) {
+      console.error('❌ Error sending audio:', error);
+      setError('音声送信でエラーが発生しました. 再試行してください.');
+    }
+  };
+
+  // Helper function to get emotion name by ID for wheel mode
+  const getEmotionNameById = (emotionId: string): string => {
+    if (roomState?.config?.vote_type === 'wheel') {
+      // For wheel mode, import emotions from EmotionWheel3Layer
+      const { PLUTCHIK_EMOTIONS_3_LAYER } = require('@/components/EmotionWheel3Layer');
+      const emotion = PLUTCHIK_EMOTIONS_3_LAYER.find((e: any) => e.id === emotionId);
+      if (emotion) {
+        // For wheel mode, show both localized names based on current language
+        if (locale === 'ja') {
+          return emotion.nameJa;
+        } else {
+          return emotion.nameEn;
+        }
+      }
+    } else {
+      // For choice modes, use emotionChoices
+      const emotion = emotionChoices.find(e => e.id === emotionId);
+      if (emotion) {
+        return emotion.name;
+      }
+      
+      // Fallback: try to translate using getEmotionDisplayName
+      return getEmotionDisplayName(emotionId);
+    }
+    return emotionId; // fallback
   };
 
   const handleUpdateSettings = async () => {
+    console.log('🔐 handleUpdateSettings called');
     try {
       const hostToken = localStorage.getItem('hostToken');
+      console.log('🔐 Host token from localStorage:', hostToken ? `${hostToken.substring(0, 8)}...` : 'null');
       if (!hostToken) {
         alert(t.common.noHostPrivileges);
         return;
       }
 
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/v1/rooms/${encodeURIComponent(roomId)}/config`, {
+      const requestBody = {
+        mode: gameMode,
+        vote_type: gameMode === 'advanced' ? '8choice' : 
+                  gameMode === 'wheel' ? 'wheel' : '4choice',
+        speaker_order: speakerOrder,
+        max_rounds: maxRounds,
+        hard_mode: hardMode
+      };
+      
+      const url = `${getApiUrl()}/api/v1/rooms/${encodeURIComponent(roomId)}/config`;
+      console.log('🔐 Settings update URL:', url);
+      console.log('🔐 Current state values - maxRounds:', maxRounds, 'gameMode:', gameMode);
+      console.log('🔐 Settings update body:', requestBody);
+      
+      const response = await fetch(url, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${hostToken}`
         },
-        body: JSON.stringify({
-          mode: gameMode,
-          vote_type: gameMode === 'advanced' ? '8choice' : 
-                    gameMode === 'wheel' ? 'wheel' : '4choice',
-          speaker_order: speakerOrder,
-          max_rounds: maxRounds
-        }),
+        body: JSON.stringify(requestBody),
       });
 
+      console.log('🔐 Settings update response status:', response.status);
+      
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ detail: 'Failed to update settings' }));
+        console.log('🔐 Settings update error:', errorData);
         throw new Error(errorData.detail || 'Failed to update settings');
       }
 
@@ -284,20 +370,27 @@ export default function RoomPage({ params }: { params: { roomId: string } }) {
           }`}>
             {roomState.players.map((player, index) => (
               <div
-                key={player}
+                key={typeof player === 'string' ? player : player.name}
                 className={`p-2 sm:p-3 rounded-lg border-2 ${
-                  player === playerName
+                  (typeof player === 'string' ? player : player.name) === playerName
                     ? 'border-blue-500 bg-blue-50'
-                    : player === roomState.currentSpeaker
+                    : (typeof player === 'string' ? player : player.name) === roomState.currentSpeaker
                     ? 'border-green-500 bg-green-50'
                     : 'border-gray-200 bg-gray-50'
                 }`}
               >
-                <div className="text-xs sm:text-sm font-medium truncate" title={player}>{player}</div>
-                {player === playerName && (
+                <div className="text-xs sm:text-sm font-medium truncate" title={typeof player === 'string' ? player : player.name}>
+                  {typeof player === 'string' ? player : player.name}
+                </div>
+                {typeof player === 'object' && player.score !== undefined && (
+                  <div className="text-xs sm:text-sm font-bold text-gray-700">
+                    {player.score}pt
+                  </div>
+                )}
+                {(typeof player === 'string' ? player : player.name) === playerName && (
                   <div className="text-xs text-blue-600">{t.common.you}</div>
                 )}
-                {player === roomState.currentSpeaker && (
+                {(typeof player === 'string' ? player : player.name) === roomState.currentSpeaker && (
                   <div className="text-xs text-green-600">{t.common.speaker}</div>
                 )}
               </div>
@@ -321,16 +414,20 @@ export default function RoomPage({ params }: { params: { roomId: string } }) {
                         <span className="text-gray-600">{t.home.gameMode}:</span>
                         <span className="ml-2">
                           {roomState.config.mode === 'basic' ? t.home.basicMode : 
-                           roomState.config.mode === 'advanced' ? t.home.advancedMode : '3層感情の輪'}
+                           roomState.config.mode === 'advanced' ? t.home.advancedMode : t.home.wheelMode}
                         </span>
                       </div>
                       <div>
-                        <span className="text-gray-600">{t.home.maxRounds}:</span>
-                        <span className="ml-2">{roomState.config.max_rounds}{t.home.rounds}</span>
+                        <span className="text-gray-600">{t.home.maxCycles}:</span>
+                        <span className="ml-2">{roomState.config.max_rounds}{t.home.cycle}</span>
                       </div>
                       <div>
                         <span className="text-gray-600">{t.home.speakerOrder}:</span>
                         <span className="ml-2">{roomState.config.speaker_order === 'sequential' ? t.home.sequential : t.home.random}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-600">{t.home.hardMode}:</span>
+                        <span className="ml-2">{roomState.config.hard_mode ? t.home.hardModeOn : t.home.hardModeOff}</span>
                       </div>
                     </div>
                   </div>
@@ -387,7 +484,7 @@ export default function RoomPage({ params }: { params: { roomId: string } }) {
                                   : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
                               }`}
                             >
-                              3層感情の輪
+                              {t.home.wheelMode}
                             </button>
                           </div>
                         </div>
@@ -395,7 +492,7 @@ export default function RoomPage({ params }: { params: { roomId: string } }) {
                         {/* Max Rounds */}
                         <div className="mb-4">
                           <label htmlFor="maxRounds" className="block text-sm font-medium text-gray-700 mb-2">
-                            {t.home.maxRounds}
+                            {t.home.maxCycles}
                           </label>
                           <select
                             id="maxRounds"
@@ -403,8 +500,8 @@ export default function RoomPage({ params }: { params: { roomId: string } }) {
                             onChange={(e) => setMaxRounds(Number(e.target.value))}
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                           >
-                            {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(num => (
-                              <option key={num} value={num}>{num}{t.home.rounds}</option>
+                            {[1, 2, 3, 4, 5].map(num => (
+                              <option key={num} value={num}>{num}{t.home.cycle}</option>
                             ))}
                           </select>
                         </div>
@@ -440,6 +537,47 @@ export default function RoomPage({ params }: { params: { roomId: string } }) {
                           </div>
                         </div>
 
+                        {/* Hard Mode */}
+                        <div className="mb-4">
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            {t.home.hardMode}
+                          </label>
+                          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-3">
+                            <p className="text-xs text-yellow-800 mb-1">
+                              🎯 音声加工でリスナーの感情判定を困難にします
+                            </p>
+                            <p className="text-xs text-yellow-700">
+                              • ピッチ・テンポ変更による印象操作<br/>
+                              • 感情逆転変換による誤誘導<br/>
+                              • スピーカーには原音、リスナーには加工音声
+                            </p>
+                          </div>
+                          <div className="grid grid-cols-2 gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setHardMode(false)}
+                              className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                                !hardMode
+                                  ? 'bg-blue-600 text-white'
+                                  : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
+                              }`}
+                            >
+                              {t.home.hardModeOff}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setHardMode(true)}
+                              className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                                hardMode
+                                  ? 'bg-red-600 text-white'
+                                  : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
+                              }`}
+                            >
+                              {t.home.hardModeOn}
+                            </button>
+                          </div>
+                        </div>
+
                         <div className="flex gap-2">
                           <button
                             onClick={handleUpdateSettings}
@@ -461,14 +599,17 @@ export default function RoomPage({ params }: { params: { roomId: string } }) {
                     {roomState.phase === 'waiting' && !lastResult && (
                       <button
                         onClick={handleStartRound}
-                        disabled={roomState.players.length < 2 || isStartingRound}
+                        disabled={roomState.players.length < 2 || isStartingRound || showSettings}
                         className={`px-6 py-3 rounded-lg font-medium ${
-                          roomState.players.length < 2 || isStartingRound
+                          roomState.players.length < 2 || isStartingRound || showSettings
                             ? 'bg-gray-400 text-gray-600 cursor-not-allowed'
                             : 'bg-green-600 text-white hover:bg-green-700'
                         }`}
                       >
-                        {isStartingRound ? t.game.starting : roomState.players.length < 2 ? t.game.minimumPlayers : `🎮 ${t.game.gameStart}`}
+                        {isStartingRound ? t.game.starting : 
+                         showSettings ? '設定変更中...' :
+                         roomState.players.length < 2 ? t.game.minimumPlayers : 
+                         `🎮 ${t.game.gameStart}`}
                       </button>
                     )}
                   </div>
@@ -479,7 +620,7 @@ export default function RoomPage({ params }: { params: { roomId: string } }) {
 
           {roomState.phase === 'in_round' && (
             <div className="space-y-6">
-              {currentRound ? (
+              {currentRound && (
                 <>
                   {!isCurrentSpeaker ? (
                     // リスナー向けの表示
@@ -487,6 +628,16 @@ export default function RoomPage({ params }: { params: { roomId: string } }) {
                       <h2 className="text-xl font-semibold mb-2">
                         {t.game.speakerIs} {currentRound.speaker_name}
                       </h2>
+                      {roomState?.config?.hard_mode && (
+                        <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-3">
+                          <p className="text-sm text-red-700">
+                            🎯 <strong>高難易度モード</strong>：音声が加工されています
+                          </p>
+                          <p className="text-xs text-red-600 mt-1">
+                            ピッチ・テンポ変更や感情逆転により判定が困難になっています
+                          </p>
+                        </div>
+                      )}
                       <div className="bg-gray-50 p-4 rounded-lg">
                         <p className="text-lg">{currentRound.phrase}</p>
                       </div>
@@ -495,6 +646,7 @@ export default function RoomPage({ params }: { params: { roomId: string } }) {
                           <AudioPlayer 
                             audioUrl={audioUrl} 
                             speakerName={currentRound.speaker_name}
+                            isProcessed={isAudioProcessed}
                           />
                         ) : (
                           <div className="bg-gray-100 p-4 rounded-lg border-2 border-gray-300">
@@ -519,73 +671,70 @@ export default function RoomPage({ params }: { params: { roomId: string } }) {
                             <p className="text-xl font-medium text-orange-900 bg-white p-3 rounded border">{currentRound.phrase}</p>
                           </div>
                           
-                          {/* Wheel mode: Let speaker choose emotion */}
-                          {roomState?.config?.vote_type === 'wheel' ? (
+                          {/* Show assigned emotion for all modes */}
+                          {speakerEmotion && (
                             <div>
-                              <h4 className="font-semibold text-orange-700 mb-2">演技したい感情を選択してください</h4>
-                              <div className="flex justify-center">
-                                <EmotionWheel3Layer
-                                  selectedEmotion={selectedEmotion}
-                                  onEmotionSelect={setSelectedEmotion}
-                                  size={300}
-                                />
-                              </div>
-                              {selectedEmotion && (
-                                <div className="mt-4">
-                                  <p className="text-sm text-orange-700 font-medium">
-                                    選択された感情で演技してください
-                                  </p>
-                                </div>
-                              )}
+                              <h4 className="font-semibold text-orange-700 mb-1">{t.game.emotion}</h4>
+                              <p className="text-lg font-medium text-orange-900 bg-white p-3 rounded border">
+                                {getEmotionDisplayName(speakerEmotion)}
+                              </p>
                             </div>
-                          ) : (
-                            // Traditional modes: Show assigned emotion
-                            speakerEmotion && (
-                              <div>
-                                <h4 className="font-semibold text-orange-700 mb-1">{t.game.emotion}</h4>
-                                <p className="text-lg font-medium text-orange-900 bg-white p-3 rounded border">{speakerEmotion}</p>
-                              </div>
-                            )
                           )}
                         </div>
                         <p className="text-sm text-orange-700 mt-4 font-medium">
-                          {roomState?.config?.vote_type === 'wheel' ? 
-                            '感情を選択して、その感情で与えられたセリフを読み上げてください' :
-                            t.game.speakerInstructions
-                          }
+                          {t.game.speakerInstructions}
                         </p>
+                        {roomState?.config?.hard_mode && (
+                          <div className="bg-red-50 border border-red-200 rounded-lg p-3 mt-3">
+                            <p className="text-sm text-red-700">
+                              🎯 <strong>高難易度モード</strong>：あなたの音声はリスナーに加工されて届きます
+                            </p>
+                            <p className="text-xs text-red-600 mt-1">
+                              あなたには原音が聞こえますが、リスナーには加工音声が再生されます
+                            </p>
+                          </div>
+                        )}
                       </div>
                       <div className="mt-6">
                         <AudioRecorder 
                           onRecordingComplete={handleAudioRecording}
                           disabled={false}
                         />
-                        {roomState?.config?.vote_type === 'wheel' ? (
-                          !selectedEmotion && (
-                            <p className="text-sm text-orange-600 mt-2">
-                              ⚠️ 演技したい感情を選択してください
-                            </p>
-                          )
-                        ) : (
-                          !speakerEmotion && (
-                            <p className="text-sm text-orange-600 mt-2">
-                              ⚠️ 感情情報を受信中... (録音は有効です)
-                            </p>
-                          )
+                        {!speakerEmotion && (
+                          <p className="text-sm text-orange-600 mt-2">
+                            ⚠️ 感情情報を受信中... (録音は有効です)
+                          </p>
                         )}
                       </div>
                     </div>
                   )}
                 </>
-              ) : (
-                <div className="text-center">
-                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-                  <p>{t.common.loadingRoundData}</p>
+              )}
+
+              {currentRound && !isCurrentSpeaker && !playerVote && !audioUrl && (
+                <div className="text-center bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                  <p className="text-yellow-700 font-medium">
+                    ⏳ スピーカーの音声録音を待っています...
+                  </p>
+                  <p className="text-yellow-600 text-sm mt-1">
+                    音声を聞いてから感情を選択してください
+                  </p>
                 </div>
               )}
 
-              {currentRound && !isCurrentSpeaker && !playerVote && (
+              {currentRound && !isCurrentSpeaker && !playerVote && audioUrl && (
                 <div className="space-y-3 sm:space-y-4">
+                  {/* Vote Timer */}
+                  {voteTimer.isActive && voteTimer.startTime && (
+                    <VoteTimer
+                      startTime={voteTimer.startTime}
+                      timeoutSeconds={voteTimer.timeoutSeconds}
+                      onTimeout={() => {
+                        console.log('⏰ Vote timer expired on client side');
+                        // サーバー側で自動的にラウンドが完了されるので、ここでは通知のみ
+                      }}
+                    />
+                  )}
                   <h3 className="font-semibold text-sm sm:text-base">{t.game.guessEmotion}</h3>
                   {roomState?.config?.vote_type === 'wheel' ? (
                     <div className="flex flex-col items-center space-y-6">
@@ -635,12 +784,23 @@ export default function RoomPage({ params }: { params: { roomId: string } }) {
 
               {currentRound && !isCurrentSpeaker && playerVote && (
                 <div className="text-center space-y-3">
+                  {/* Vote Timer for voters who have already voted */}
+                  {voteTimer.isActive && voteTimer.startTime && (
+                    <VoteTimer
+                      startTime={voteTimer.startTime}
+                      timeoutSeconds={voteTimer.timeoutSeconds}
+                      onTimeout={() => {
+                        console.log('⏰ Vote timer expired on client side');
+                        // サーバー側で自動的にラウンドが完了されるので、ここでは通知のみ
+                      }}
+                    />
+                  )}
                   <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
                     <p className="text-blue-800 font-semibold mb-2">{t.game.voteComplete}</p>
                     <div className="text-sm">
                       <span className="text-blue-600">{t.game.yourVote}: </span>
                       <span className="font-medium text-blue-800">
-                        {emotionChoices.find(e => e.id === playerVote)?.name || playerVote}
+                        {getEmotionNameById(playerVote)}
                       </span>
                     </div>
                   </div>
@@ -654,7 +814,7 @@ export default function RoomPage({ params }: { params: { roomId: string } }) {
             <div className="space-y-4">
               <h2 className="text-xl font-semibold text-center">{t.game.resultAnnouncement}</h2>
               {/* Player's Vote Result */}
-              {lastResult.votes && lastResult.votes[playerName] ? (
+              {lastResult.votes && lastResult.votes[playerName] && (
                 <div className={`p-4 rounded-lg border-2 ${
                   (() => {
                     const playerVotedEmotion = lastResult.votes[playerName];
@@ -683,13 +843,13 @@ export default function RoomPage({ params }: { params: { roomId: string } }) {
                       <p className="text-sm">
                         <span className="text-gray-600">{t.game.yourVoteLabel} </span>
                         <span className="font-medium">
-                          {emotionChoices.find(e => e.id === lastResult.votes[playerName])?.name || lastResult.votes[playerName]}
+                          {getEmotionNameById(lastResult.votes[playerName])}
                         </span>
                       </p>
                       <p className="text-sm">
                         <span className="text-gray-600">{t.game.correctAnswerLabel} </span>
                         <span className="font-medium">
-                          {lastResult.correct_emotion}
+                          {getEmotionNameById(lastResult.correctEmotionId || '')}
                         </span>
                       </p>
                     </div>
@@ -705,16 +865,18 @@ export default function RoomPage({ params }: { params: { roomId: string } }) {
                     })()}
                   </div>
                 </div>
-              ):(
-                // スピーカーの場合
-      <div className="bg-blue-50 p-6 rounded-lg text-center border border-blue-200">
-        <p className="text-lg font-semibold text-blue-700 mb-2">
-          {t.game.youWereSpeaker}
-        </p>
-        <p className="text-xl font-bold">
-          {t.game.correctAnswerLabel} {lastResult.correct_emotion}
-        </p>
-      </div>
+              )}
+              
+              {/* Speaker Result */}
+              {lastResult.votes && !lastResult.votes[playerName] && (
+                <div className="bg-blue-50 p-6 rounded-lg text-center border border-blue-200">
+                  <p className="text-lg font-semibold text-blue-700 mb-2">
+                    {t.game.youWereSpeaker}
+                  </p>
+                  <p className="text-xl font-bold">
+                    {t.game.correctAnswerLabel} {getEmotionNameById(lastResult.correctEmotionId || '')}
+                  </p>
+                </div>
               )}
               
               <div>
@@ -731,9 +893,6 @@ export default function RoomPage({ params }: { params: { roomId: string } }) {
 
               {isHost && !lastResult.isGameComplete && (
                 <div className="space-y-2">
-                  <div className="text-center text-sm text-gray-600 mb-2">
-                    {t.game.roundProgress} {(lastResult.completedRounds || 0)}/{lastResult.maxRounds || roomState?.config?.max_rounds || 3}
-                  </div>
                   <button
                     onClick={handleStartRound}
                     disabled={isStartingRound}
@@ -754,7 +913,7 @@ export default function RoomPage({ params }: { params: { roomId: string } }) {
                     {t.game.gameEndEmoji}
                   </h3>
                   <p className="text-yellow-700">
-                    {lastResult.completedRounds}/{lastResult.maxRounds}{t.game.roundsCompleted}
+                    {lastResult.completedCycles || Math.floor((lastResult.completedRounds || 0) / roomState.players.length)}/{lastResult.maxCycles || lastResult.maxRounds}{t.game.cyclesCompleted}
                   </p>
                 </div>
               )}
